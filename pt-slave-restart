@@ -5034,6 +5034,7 @@ sub watch_server {
       [ qr/Incorrect key file for table/          => 'repair_table'      ],
       [ qr/Delete_rows event on table/            => 'skip'              ],
       [ qr/'Table '.' already exists' on query/   => 'skip'              ],
+      [ qr/Duplicate entry/                       => 'skip'              ],
       # This must be the last one.  It's a catch-all rule: skip and restart.
       [ qr/./ => ($have_gtid ? 'skip_gtid' : 'skip')                     ],
    );
@@ -5067,7 +5068,7 @@ sub watch_server {
          my $binlog_format = $vars->{binlog_format}->{Value};
          my $set_skip_common = $dbh->prepare("SET GLOBAL SQL_SLAVE_SKIP_COUNTER = "
                           . $o->get('skip-count'));
-         my $set_skip_idempotent = $dbh->prepare("set slave_exec_mode = IDEMPOTENT");
+         my $set_skip_idempotent = $dbh->prepare("SET GLOBAL SLAVE_EXEC_MODE = IDEMPOTENT");
          $binlog_format eq 'STATEMENT'
          ? $set_skip_common->execute()
 	     : $set_skip_idempotent->execute();   
