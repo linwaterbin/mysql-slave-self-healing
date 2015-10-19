@@ -1,0 +1,13 @@
+The current pt-slave-restart version is: v0.1 basing on Percona v2.2.15
+
+Improvements and protocol version compliant new features
+are added  as following:
+
+v0.1 BuildTime:2015-10-19
+  - new pattern
+    error_number:1032
+    error_msg:Could not execute Delete_rows event on table TB_NAME; Can't find record in '', 
+              Error_code: 1032; handler error HA_ERR_KEY_NOT_FOUND;
+
+  - change action skip
+    - on RBR or MBR would execute slave_exec_mode=IDEMPOTENT instead of sql_slave_skip_counter
