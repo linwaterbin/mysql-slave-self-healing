@@ -5032,7 +5032,8 @@ sub watch_server {
       [ qr/You have an error in your SQL/         => 'refetch_relay_log' ],
       [ qr/Could not parse relay log event entry/ => 'refetch_relay_log' ],
       [ qr/Incorrect key file for table/          => 'repair_table'      ],
-      [ qr/Delete_rows event on table/            => 'skip'        ],
+      [ qr/Delete_rows event on table/            => 'skip'              ],
+      [ qr/'Table '.' already exists' on query/   => 'skip'              ],
       # This must be the last one.  It's a catch-all rule: skip and restart.
       [ qr/./ => ($have_gtid ? 'skip_gtid' : 'skip')                     ],
    );
@@ -5069,7 +5070,7 @@ sub watch_server {
          my $set_skip_idempotent = $dbh->prepare("set slave_exec_mode = IDEMPOTENT");
          $binlog_format eq 'STATEMENT'
          ? $set_skip_common->execute()
-	 : $set_skip_idempotent->execute();   
+	     : $set_skip_idempotent->execute();   
       },
       skip_gtid => sub {
          my ( $stat, $dbh ) = @_;
