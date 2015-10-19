@@ -5032,6 +5032,7 @@ sub watch_server {
       [ qr/You have an error in your SQL/         => 'refetch_relay_log' ],
       [ qr/Could not parse relay log event entry/ => 'refetch_relay_log' ],
       [ qr/Incorrect key file for table/          => 'repair_table'      ],
+      [ qr/Delete_rows event on table/            => 'skip'        ],
       # This must be the last one.  It's a catch-all rule: skip and restart.
       [ qr/./ => ($have_gtid ? 'skip_gtid' : 'skip')                     ],
    );
@@ -5056,9 +5057,19 @@ sub watch_server {
       },
       skip => sub {
          my ( $stat, $dbh ) = @_;
-         my $set_skip = $dbh->prepare("SET GLOBAL SQL_SLAVE_SKIP_COUNTER = "   
+         PTDEBUG && _d("when RBR OR MBR dealing with HA_ERR_KEY_NOT_FOUND,
+                        set global slave_exec_mode= IDEMPOTENT would be better,
+                        more detail info please refer the blog:
+                        http://blog.csdn.net/dba_waterbin/article/details/41369819
+                      ");
+         my $vars = $dbh->selectall_hashref('SHOW VARIABLES', 'Variable_name');
+         my $binlog_format = $vars->{binlog_format}->{Value};
+         my $set_skip_common = $dbh->prepare("SET GLOBAL SQL_SLAVE_SKIP_COUNTER = "
                           . $o->get('skip-count'));
-         $set_skip->execute();
+         my $set_skip_idempotent = $dbh->prepare("set slave_exec_mode = IDEMPOTENT");
+         $binlog_format eq 'STATEMENT'
+         ? $set_skip_common->execute()
+	 : $set_skip_idempotent->execute();   
       },
       skip_gtid => sub {
          my ( $stat, $dbh ) = @_;
