@@ -9,9 +9,11 @@ v0.1 BuildTime:2015-10-19
       error_msg:Could not execute Delete_rows event on table .; Can't find record in '', 
                 Error_code: 1032; handler error HA_ERR_KEY_NOT_FOUND;
 
-    - error_number:1050
+    - error_number:1050 
       error_msg:Error 'Table '.' already exists' on query
 
+    - error_number:1146
+      error_msg:'Table '.' doesn't exist' on query
 
   - change action skip
     - on RBR or MBR would execute slave_exec_mode=IDEMPOTENT instead of sql_slave_skip_counter
