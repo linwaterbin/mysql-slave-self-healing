@@ -2870,6 +2870,10 @@ sub get_connected_slaves {
    @{$dbh->selectall_arrayref($sql, { Slice => {} })};
 }
 
+sub get_master_tbl_info {
+   my ( $self, $master ) = @_;   
+}
+
 sub is_master_of {
    my ( $self, $master, $slave ) = @_;
    my $master_status = $self->get_master_status($master)
@@ -3266,6 +3270,57 @@ sub reset_known_replication_threads {
    $self->{replication_thread} = {};
    return;
 }
+
+## added by waterbinlin@tencent.com
+## 2015-10-23
+sub get_create_table {
+   my ( $self, $dbh, $db, $tbl ) = @_;
+   die "I need a dbh parameter" unless $dbh;
+   die "I need a db parameter"  unless $db;
+   die "I need a tbl parameter" unless $tbl;
+   my $q = $self->{Quoter};
+
+   my $new_sql_mode
+      = q{/*!40101 SET @OLD_SQL_MODE := @@SQL_MODE, }
+      . q{@@SQL_MODE := '', }
+      . q{@OLD_QUOTE := @@SQL_QUOTE_SHOW_CREATE, }
+      . q{@@SQL_QUOTE_SHOW_CREATE := 1 */};
+
+   my $old_sql_mode
+      = q{/*!40101 SET @@SQL_MODE := @OLD_SQL_MODE, }
+      . q{@@SQL_QUOTE_SHOW_CREATE := @OLD_QUOTE */};
+
+   PTDEBUG && _d($new_sql_mode);
+   eval { $dbh->do($new_sql_mode); };
+   PTDEBUG && $EVAL_ERROR && _d($EVAL_ERROR);
+
+   my $use_sql = 'USE ' . $q->quote($db);
+   PTDEBUG && _d($dbh, $use_sql);
+   $dbh->do($use_sql);
+
+   my $show_sql = "SHOW CREATE TABLE " . $q->quote($db, $tbl);
+   PTDEBUG && _d($show_sql);
+   my $href;
+   eval { $href = $dbh->selectrow_hashref($show_sql); };
+   if ( my $e = $EVAL_ERROR ) {
+      PTDEBUG && _d($old_sql_mode);
+      $dbh->do($old_sql_mode);
+
+      die $e;
+   }
+
+   PTDEBUG && _d($old_sql_mode);
+   $dbh->do($old_sql_mode);
+
+   my ($key) = grep { m/create (?:table|view)/i } keys %$href;
+   if ( !$key ) {
+      die "Error: no 'Create Table' or 'Create View' in result set from "
+         . "$show_sql: " . Dumper($href);
+   }
+
+   return $href->{$key};
+}
+
 
 sub get_cxn_from_dsn_table {
    my ($self, %args) = @_;
@@ -5035,6 +5090,7 @@ sub watch_server {
       [ qr/Delete_rows event on table/            => 'skip'              ],
       [ qr/'Table '.' already exists' on query/   => 'skip'              ],
       [ qr/Duplicate entry/                       => 'skip'              ],
+      [ qr/'Table '.' doesn't exist' on query/   => 'skip'              ],
       # This must be the last one.  It's a catch-all rule: skip and restart.
       [ qr/./ => ($have_gtid ? 'skip_gtid' : 'skip')                     ],
    );
