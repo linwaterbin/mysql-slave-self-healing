@@ -17,3 +17,8 @@ v0.1 BuildTime:2015-10-19
 
   - change action skip
     - on RBR or MBR would execute slave_exec_mode=IDEMPOTENT instead of sql_slave_skip_counter
+
+
+  - new add function
+    - function name:get_create_table
+      - to get table structure
