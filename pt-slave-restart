@@ -2699,6 +2699,7 @@ sub _resolve_recursion_methods {
    }
 }
 
+
 sub recurse_to_slaves {
    my ( $self, $args, $level ) = @_;
    $level ||= 0;
@@ -2724,6 +2725,7 @@ sub recurse_to_slaves {
          or die "Cannot print: $OS_ERROR";
       return;
    }
+
 
    my $sql  = 'SELECT @@SERVER_ID';
    PTDEBUG && _d($sql);
@@ -2796,6 +2798,7 @@ sub _find_slaves_by_processlist {
 
    return @slaves;
 }
+
 
 sub _find_slaves_by_hosts {
    my ( $self, $dsn_parser, $dbh, $dsn ) = @_;
@@ -2870,9 +2873,6 @@ sub get_connected_slaves {
    @{$dbh->selectall_arrayref($sql, { Slice => {} })};
 }
 
-sub get_master_tbl_info {
-   my ( $self, $master ) = @_;   
-}
 
 sub is_master_of {
    my ( $self, $master, $slave ) = @_;
@@ -2893,6 +2893,7 @@ sub is_master_of {
       die "I don't see any slave I/O thread connected with user "
          . $slave_status->{master_user};
    }
+
 
    if ( ($slave_status->{slave_io_state} || '')
       eq 'Waiting for master to send event' )
@@ -2916,6 +2917,7 @@ sub get_master_dsn {
    my ( $self, $dbh, $dsn, $dsn_parser ) = @_;
    my $master = $self->get_slave_status($dbh) or return undef;
    my $spec   = "h=$master->{master_host},P=$master->{master_port}";
+   PTDEBUG && _d(" water $dsn_parser->parse($spec, $dsn) "); 
    return       $dsn_parser->parse($spec, $dsn);
 }
 
@@ -5080,6 +5082,7 @@ sub watch_server {
       }
    }
 
+   
    # ########################################################################
    # Lookup tables of things to do when a problem is detected.
    # ########################################################################
@@ -5088,11 +5091,8 @@ sub watch_server {
       [ qr/Could not parse relay log event entry/ => 'refetch_relay_log' ],
       [ qr/Incorrect key file for table/          => 'repair_table'      ],
       [ qr/Delete_rows event on table/            => 'skip'              ],
-      [ qr/'Table '.' already exists' on query/   => 'skip'              ],
+      [ qr/Unknown table/                         => 'skip'              ],
       [ qr/Duplicate entry/                       => 'skip'              ],
-      [ qr/'Table '.' doesn't exist' on query/   => 'skip'              ],
-      # This must be the last one.  It's a catch-all rule: skip and restart.
-      [ qr/./ => ($have_gtid ? 'skip_gtid' : 'skip')                     ],
    );
 
    # ########################################################################
@@ -5120,14 +5120,33 @@ sub watch_server {
                         more detail info please refer the blog:
                         http://blog.csdn.net/dba_waterbin/article/details/41369819
                       ");
-         my $vars = $dbh->selectall_hashref('SHOW VARIABLES', 'Variable_name');
-         my $binlog_format = $vars->{binlog_format}->{Value};
+
+         my $master_dbh ;
+         my $master_host = $stat->{master_host};
+         my $master_port = $stat->{master_port};
+         my $master_user = "repl";
+         my $master_pass = "repl";
+
+         PTDEBUG && _d("waterbin $master_host $master_port"); 
+         eval{
+                $master_dbh =  DBI->connect("dbi:mysql:test:$master_host:$master_port",$master_user,$master_pass);
+             };
+         if($@)
+         {
+                PTDEBUG && _d("Fail to connect to Master");
+                exit;
+         }
+
+         my $v_sql = 'SELECT @@BINLOG_FORMAT';
+         my $binlog_format = $master_dbh->selectrow_array($v_sql);
+         PTDEBUG && _d("waterbinlin  $binlog_format");
          my $set_skip_common = $dbh->prepare("SET GLOBAL SQL_SLAVE_SKIP_COUNTER = "
                           . $o->get('skip-count'));
          my $set_skip_idempotent = $dbh->prepare("SET GLOBAL SLAVE_EXEC_MODE = IDEMPOTENT");
          $binlog_format eq 'STATEMENT'
          ? $set_skip_common->execute()
-	     : $set_skip_idempotent->execute();   
+	 : $set_skip_idempotent->execute();  
+         PTDEBUG && _d("waterbin $binlog_format"); 
       },
       skip_gtid => sub {
          my ( $stat, $dbh ) = @_;
@@ -5242,13 +5261,14 @@ sub watch_server {
                      $err = substr($err, 0, $o->get('error-length'));
                   }
                }
-               printf("%s %s %s %11d %d %s\n",
+               printf("%s %s %s %11d %d %s %s\n",
                   ts(time),
                   $dp->as_string($dsn),
                   $stat->{relay_log_file},
                   $stat->{relay_log_pos},
                   $stat->{last_errno} || 0,
-                  $err
+                  $err,
+                  "Start self-healing"
                );
             }
 
