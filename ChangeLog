@@ -22,3 +22,6 @@ v0.1 BuildTime:2015-10-19
   - new add function
     - function name:get_create_table
       - to get table structure
+
+  - Bug Fix
+    - change slave's binlog_format to master's binlog_format
